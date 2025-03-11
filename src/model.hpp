@@ -49,4 +49,6 @@ private:
     double alphaEastWest, alphaWestEast, alphaSouthNorth, alphaNorthSouth;
 
     std::unordered_map<std::size_t, std::uint8_t> m_fire_front;
+
+    std::vector<std::size_t> m_keys; // enregistrement des clés
 };

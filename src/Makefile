@@ -9,6 +9,11 @@ else
 CXXFLAGS += -O3 -march=native
 endif
 
+# OpenMP configuration
+ifdef OPENMP
+CXXFLAGS += -fopenmp
+endif
+
 ALL= simulation.exe 
 
 default:	help
@@ -28,6 +33,7 @@ help:
 	@echo "Available targets : "
 	@echo "    all            : compile all executables"
 	@echo "Add DEBUG=yes to compile in debug"
+	@echo "Add OPENMP=yes to compile with OpenMP support"
 	@echo "Configuration :"
 	@echo "    CXX      :    $(CXX)"
 	@echo "    CXXFLAGS :    $(CXXFLAGS)"

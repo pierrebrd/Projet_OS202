@@ -173,6 +173,7 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
+
     auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
