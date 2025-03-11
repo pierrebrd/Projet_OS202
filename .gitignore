@@ -1,0 +1,18 @@
+# executables
+*.x
+*.o
+*.out
+*.exe
+
+# latex directories
+*/_minted*/
+*/*/_minted*/
+*/*/*/_minted*
+*/.latex_files/
+*/*/.latex_files/
+*/*/*/.latex_files/
+
+
+
+
+
