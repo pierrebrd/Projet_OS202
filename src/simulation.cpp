@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 
 struct ParamsType // Paramètres de la simulation
 {
-    double length{ 1. };
+    double length{ 100. };
     unsigned discretization{ 20u };
     std::array<double, 2> wind{ 0.,0. };
     Model::LexicoIndices start{ 10u,10u };
