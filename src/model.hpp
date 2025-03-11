@@ -16,6 +16,7 @@ public:
         unsigned row, column;
     };
 
+    // Constructeurs et destructeurs
     Model(double t_length, unsigned t_discretization, std::array<double, 2> t_wind,
         LexicoIndices t_start_fire_position, double t_max_wind = 60.);
     Model(Model const&) = delete;

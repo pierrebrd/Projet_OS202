@@ -11,7 +11,7 @@
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 
-struct ParamsType
+struct ParamsType // Paramètres de la simulation
 {
     double length{ 1. };
     unsigned discretization{ 20u };
@@ -173,14 +173,13 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    auto displayer = Displayer::init_instance(params.discretization, params.discretization);
-    auto simu = Model(params.length, params.discretization, params.wind,
-        params.start);
+    auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
+    auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
     while (simu.update()) {
         if ((simu.time_step() & 31) == 0)
-            std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-        displayer->update(simu.vegetal_map(), simu.fire_map());
+            // std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
         std::this_thread::sleep_for(0.1s);

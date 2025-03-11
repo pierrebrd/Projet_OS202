@@ -6,7 +6,7 @@
 
 namespace
 {
-    double pseudo_random(std::size_t index, std::size_t time_step) {
+    double pseudo_random(std::size_t index, std::size_t time_step) { // On donne un index et un pas de temps et on renvoie un nombre pseudo-aléatoire
         std::uint_fast32_t xi = std::uint_fast32_t(index * (time_step + 1));
         std::uint_fast32_t r = (48271 * xi) % 2147483647;
         return r / 2147483646.;
@@ -17,8 +17,7 @@ namespace
     }
 }
 
-Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t_wind,
-    LexicoIndices t_start_fire_position, double t_max_wind)
+Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t_wind, LexicoIndices t_start_fire_position, double t_max_wind)
     : m_length(t_length),
     m_distance(-1),
     m_geometry(t_discretization),
