@@ -176,17 +176,17 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    std::cout << "Number of available threads: " << omp_get_num_threads() << std::endl;
-    std::cout << "Number of threads used: " << omp_get_max_threads() << std::endl;
-
-
     auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
+
+    std::cout << "Number of available threads: " << omp_get_num_threads() << std::endl;
+    std::cout << "Number of threads used: " << omp_get_max_threads() << std::endl;
+
     while (simu.update()) {
+
         if ((simu.time_step() & 31) == 0) {
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-            std::cout << "Number of available threads: " << omp_get_num_threads() << std::endl;
         }
         displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)

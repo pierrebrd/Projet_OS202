@@ -95,18 +95,21 @@ Model::update() {
 
         #pragma omp single
         {
-            printf("Running with %d threads\n", omp_get_num_threads());
+            //printf("Running with %d threads\n", omp_get_num_threads());
             // On initialise les containers pour chaque thread
             int num_threads = omp_get_num_threads();
             thread_local_additions.resize(num_threads);
             thread_local_removals.resize(num_threads);
         }
+
         int thread_id = omp_get_thread_num();
         auto& local_additions = thread_local_additions[thread_id];
         auto& local_removals = thread_local_removals[thread_id];
 
         #pragma omp for
         for (const auto& key : m_keys) { // On itère directement sur les clés
+            //printf("Thread %d is processing key %zu\n", omp_get_thread_num(), key);
+
             if (m_fire_front.find(key) == m_fire_front.end())
                 continue; // Si la clé n'est pas dans m_fire_front, on passe
             // Récupération de la coordonnée lexicographique de la case en feu :
@@ -185,8 +188,11 @@ Model::update() {
             next_front.erase(key);
         }
     }
+
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
+
+    #pragma omp parallel for
     for (auto key : m_keys) { // On parcourt les clés
         if (m_fire_front.find(key) == m_fire_front.end()) // Si la clé n'est pas dans m_fire_front
             continue; // On passe
