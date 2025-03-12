@@ -1,7 +1,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
-// #include <omp.h>
+#include <omp.h>
 #include "model.hpp"
 
 
@@ -84,7 +84,7 @@ Model::update() {
     auto next_front = m_fire_front;
 
     // On parallélise cette boucle 
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (const auto& key : m_keys) { // On itère directement sur les clés
         if (m_fire_front.find(key) == m_fire_front.end())
             continue; // Si la clé n'est pas dans m_fire_front, on passe

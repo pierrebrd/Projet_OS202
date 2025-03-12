@@ -4,9 +4,12 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <omp.h>
+#include <unistd.h>
 
 #include "model.hpp"
 #include "display.hpp"
+
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -173,6 +176,8 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
+    std::cout << "Number of available threads: " << omp_get_num_threads() << std::endl;
+
 
     auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
@@ -183,7 +188,7 @@ int main(int nargs, char* args[]) {
         displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+        //std::this_thread::sleep_for(0.1s);
     }
     return EXIT_SUCCESS;
 }
