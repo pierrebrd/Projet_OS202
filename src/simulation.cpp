@@ -178,11 +178,11 @@ int main(int nargs, char* args[]) {
     SDL_Event event;
     while (simu.update()) {
         if ((simu.time_step() & 31) == 0)
-            // std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+            std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+        displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+        //std::this_thread::sleep_for(0.1s);
     }
     return EXIT_SUCCESS;
 }
