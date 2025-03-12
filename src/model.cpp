@@ -1,7 +1,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
-#include <omp.h>
+// #include <omp.h>
 #include "model.hpp"
 
 
@@ -65,9 +65,12 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
 
     // Première étape : parallélisation
     // On initialise le vecteur des clés 
-    m_keys.reserve(m_fire_front.size());
-    for (auto f : m_fire_front) {
-        m_keys.push_back(f.first); // On enregistre la clé
+    m_keys.reserve(t_discretization * t_discretization);
+    for (unsigned row = 0; row < m_geometry; ++row) {
+        for (unsigned column = 0; column < m_geometry; ++column) {
+            auto index = get_index_from_lexicographic_indices({ row, column }); // On crée l'index
+            m_keys.push_back(index); // On l'ajoute à la liste
+        }
     }
 
 }
@@ -82,8 +85,10 @@ Model::update() {
 
     // On parallélise cette boucle 
     // #pragma omp parallel for
-    for (int i = 0; i < m_keys.size(); ++i) { // On parcourt les clés
-        auto key = m_keys[i]; // On récupère la clé
+    for (const auto& key : m_keys) { // On itère directement sur les clés
+        if (m_fire_front.find(key) == m_fire_front.end())
+            continue; // Si la clé n'est pas dans m_fire_front, on passe
+
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(key);
         // Et de la puissance du foyer
@@ -150,8 +155,9 @@ Model::update() {
     }
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
-    for (int i = 0; i < m_keys.size(); ++i) { // On parcourt les clés
-        auto key = m_keys[i]; // On récupère la clé
+    for (auto key : m_keys) { // On parcourt les clés
+        if (m_fire_front.find(key) == m_fire_front.end()) // Si la clé n'est pas dans m_fire_front
+            continue; // On passe
         if (m_vegetation_map[key] > 0)
             m_vegetation_map[key] -= 1;
     }

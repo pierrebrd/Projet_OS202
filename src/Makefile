@@ -10,9 +10,9 @@ CXXFLAGS += -O3 -march=native
 endif
 
 # OpenMP configuration
-ifdef OPENMP
-CXXFLAGS += -fopenmp
-endif
+# ifdef OPENMP
+# CXXFLAGS += -fopenmp
+# endif
 
 ALL= simulation.exe 
 
