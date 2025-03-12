@@ -66,8 +66,8 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
     // Première étape : parallélisation
     // On initialise le vecteur des clés 
     m_keys.reserve(t_discretization * t_discretization);
-    for (unsigned row = 0; row < m_geometry; ++row) {
-        for (unsigned column = 0; column < m_geometry; ++column) {
+    for (unsigned row = 0; row < t_discretization; ++row) {
+        for (unsigned column = 0; column < t_discretization; ++column) {
             auto index = get_index_from_lexicographic_indices({ row, column }); // On crée l'index
             m_keys.push_back(index); // On l'ajoute à la liste
         }
@@ -88,7 +88,6 @@ Model::update() {
     for (const auto& key : m_keys) { // On itère directement sur les clés
         if (m_fire_front.find(key) == m_fire_front.end())
             continue; // Si la clé n'est pas dans m_fire_front, on passe
-
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(key);
         // Et de la puissance du foyer
