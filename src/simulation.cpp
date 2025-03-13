@@ -200,13 +200,14 @@ int main(int nargs, char* args[]) {
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
-    std::cout << "Number of available threads: " << omp_get_num_threads() << std::endl;
-    std::cout << "Number of threads used: " << omp_get_max_threads() << std::endl;
+    std::cout << "Number of available threads : " << omp_get_max_threads() << std::endl;
 
+
+    auto start_global = std::chrono::high_resolution_clock::now();
 
     while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)) { // Modification de la fonction pour mesurer le temps d'exécution
         if ((simu.time_step() & 31) == 0) {
-            std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+            std::cout << "\nTime step " << simu.time_step() << "\n===============" << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
             auto stop = std::chrono::high_resolution_clock::now();
@@ -215,7 +216,7 @@ int main(int nargs, char* args[]) {
             std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
         }
         else {
-            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+            //displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         }
         //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
 
@@ -223,5 +224,8 @@ int main(int nargs, char* args[]) {
             break;
         //std::this_thread::sleep_for(0.1s);
     }
+    auto stop_global = std::chrono::high_resolution_clock::now();
+    auto duration_global = std::chrono::duration_cast<std::chrono::milliseconds>(stop_global - start_global);
+    std::cout << "Temps d'exécution complet du programme: " << duration_global.count() << " millisecondes" << std::endl;
     return EXIT_SUCCESS;
 }
