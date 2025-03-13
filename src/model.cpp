@@ -66,13 +66,7 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
 
     // Première étape : parallélisation
     // On initialise le vecteur des clés 
-    m_keys.reserve(t_discretization * t_discretization);
-    for (unsigned row = 0; row < t_discretization; ++row) {
-        for (unsigned column = 0; column < t_discretization; ++column) {
-            auto index = get_index_from_lexicographic_indices({ row, column }); // On crée l'index
-            m_keys.push_back(index); // On l'ajoute à la liste
-        }
-    }
+
 
 }
 // --------------------------------------------------------------------------------------------------------------------
@@ -81,19 +75,26 @@ Model::update() {
 
     // Parallélisation OpenMP : on a une liste de clés et on va faire un traitement sur chaque clé
 
+    // mise à jour de m_keys
 
-    auto next_front = m_fire_front;
+    std::vector<std::size_t> m_keys; // enregistrement des clés
+
+    for (auto f : m_fire_front) {
+        m_keys.push_back(f.first); // On l'ajoute à la liste
+    }
+
 
     // Create thread-local containers for changes
     std::vector<std::unordered_map<std::size_t, std::uint8_t>> thread_local_additions;
     std::vector<std::vector<std::size_t>> thread_local_removals;
 
 
+
     // On parallélise cette boucle 
-    //#pragma omp parallel 
+    #pragma omp parallel 
     {
 
-        //#pragma omp single
+        #pragma omp single
         {
             //printf("Running with %d threads\n", omp_get_num_threads());
             // On initialise les containers pour chaque thread
@@ -106,12 +107,10 @@ Model::update() {
         auto& local_additions = thread_local_additions[thread_id];
         auto& local_removals = thread_local_removals[thread_id];
 
-        //#pragma omp for
+        #pragma omp for schedule(static)
         for (const auto& key : m_keys) { // On itère directement sur les clés
             //printf("Thread %d is processing key %zu\n", omp_get_thread_num(), key);
 
-            if (m_fire_front.find(key) == m_fire_front.end())
-                continue; // Si la clé n'est pas dans m_fire_front, on passe
             // Récupération de la coordonnée lexicographique de la case en feu :
             LexicoIndices coord = get_lexicographic_from_index(key);
             // Et de la puissance du foyer
@@ -180,27 +179,27 @@ Model::update() {
 
     for (auto& removals : thread_local_removals) {
         for (auto key : removals) {
-            next_front.erase(key);
+            m_fire_front.erase(key);
         }
     }
 
 
     for (auto& additions : thread_local_additions) {
         for (auto& [key, value] : additions) {
-            next_front[key] = value;
+            m_fire_front[key] = value;
         }
     }
 
 
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
-    m_fire_front = next_front;
 
-    for (auto key : m_keys) { // On parcourt les clés
-        if (m_fire_front.find(key) == m_fire_front.end()) // Si la clé n'est pas dans m_fire_front
-            continue; // On passe
-        if (m_vegetation_map[key] > 0)
-            m_vegetation_map[key] -= 1;
+    for (auto f : m_fire_front) {
+        if (m_vegetation_map[f.first] > 0)
+            m_vegetation_map[f.first] -= 1;
     }
+    m_time_step += 1;
+    return !m_fire_front.empty();
+
     m_time_step += 1;
     return !m_fire_front.empty();
 }
