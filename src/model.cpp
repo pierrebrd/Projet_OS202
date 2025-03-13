@@ -170,16 +170,11 @@ Model::update() {
                 // Foyer en train de s'éteindre.
                 m_fire_map[key] >>= 1;
                 auto new_value = m_fire_front[key] >> 1;
+                local_additions[key] = new_value;
                 if (new_value == 0) {
                     local_removals.push_back(key);
                 }
             }
-        }
-    }
-
-    for (auto& additions : thread_local_additions) {
-        for (auto& [key, value] : additions) {
-            next_front[key] = value;
         }
     }
 
@@ -188,6 +183,14 @@ Model::update() {
             next_front.erase(key);
         }
     }
+
+
+    for (auto& additions : thread_local_additions) {
+        for (auto& [key, value] : additions) {
+            next_front[key] = value;
+        }
+    }
+
 
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
