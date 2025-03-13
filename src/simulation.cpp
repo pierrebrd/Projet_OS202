@@ -171,18 +171,18 @@ void display_params(ParamsType const& params) {
 // Fonction générique pour mesurer le temps d'exécution d'une méthode
 template<typename Obj, typename Method, typename... Args>
 auto measure_time(bool condition, Obj&& objet, Method&& methode, Args&&... args) {
-    if(condition){
+    if (condition) {
         auto start = std::chrono::high_resolution_clock::now();
-    
+
         auto result = (std::forward<Obj>(objet).*std::forward<Method>(methode))(std::forward<Args>(args)...);
-    
+
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    
+
         std::cout << "Temps d'exécution : " << duration.count() << " microsecondes" << std::endl;
         return result;
     }
-    else{
+    else {
         auto result = (std::forward<Obj>(objet).*std::forward<Method>(methode))(std::forward<Args>(args)...);
         return result;
     }
@@ -197,24 +197,24 @@ int main(int nargs, char* args[]) {
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
-    while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){ // Modification de la fonction pour mesurer le temps d'exécution
-        if ((simu.time_step() & 31) == 0){
+    while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)) { // Modification de la fonction pour mesurer le temps d'exécution
+        if ((simu.time_step() & 31) == 0) {
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        
+
             std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
         }
-        else{
-            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+        else {
+            //displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         }
         //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
-        
+
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
-        std::this_thread::sleep_for(0.1s);
+        //std::this_thread::sleep_for(0.1s);
     }
     return EXIT_SUCCESS;
 }
