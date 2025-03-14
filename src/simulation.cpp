@@ -215,6 +215,7 @@ int main(int nargs, char* args[]) {
     SDL_Event event;
 
     auto start = std::chrono::high_resolution_clock::now();
+    std::cout << "Number of available threads : " << omp_get_max_threads() << std::endl;
 
 
     bool display_mpi = true;
