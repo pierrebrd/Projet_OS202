@@ -217,7 +217,6 @@ int main(int nargs, char* args[]) {
     bool display_mpi = true;
     if(size == 2){
         int table_size = params.discretization * params.discretization;
-
         if(rank == 0){
             // Thread s'occupant de l'affichage
             std::vector<uint8_t> vegetal_map(table_size, 255u);
@@ -228,7 +227,6 @@ int main(int nargs, char* args[]) {
             MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             while(status.MPI_TAG != 1){
-                
                 displayer->update(vegetal_map, fire_map);
                 MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
