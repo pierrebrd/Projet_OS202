@@ -211,8 +211,11 @@ int main(int nargs, char* args[]) {
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
+    auto start = std::chrono::high_resolution_clock::now();
+
+
     bool display_mpi = true;
-    if(display_mpi){
+    if(size == 2){
         int table_size = params.discretization * params.discretization;
 
         if(rank == 0){
@@ -221,22 +224,29 @@ int main(int nargs, char* args[]) {
             std::vector<uint8_t> fire_map(table_size, 0u);
             MPI_Status status;
 
+        
             MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             while(status.MPI_TAG != 1){
+                
                 displayer->update(vegetal_map, fire_map);
                 MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
+                    break;
+                // std::this_thread::sleep_for(0.1s);
             }
         }
         else{
             MPI_Request request;
             while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){
                 MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
+                MPI_Wait(&request, MPI_STATUS_IGNORE);
                 MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
+                MPI_Wait(&request, MPI_STATUS_IGNORE);
             }
-            MPI_Wait(&request, MPI_STATUS_IGNORE);
             MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
+            MPI_Wait(&request, MPI_STATUS_IGNORE);
             MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
             MPI_Wait(&request, MPI_STATUS_IGNORE);
         }
@@ -259,11 +269,14 @@ int main(int nargs, char* args[]) {
             
             if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                 break;
-            std::this_thread::sleep_for(0.1s);
+            // std::this_thread::sleep_for(0.1s);
         }
 
     }
-    MPI_Finalize()
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::cout << "Temps d'exécution total : " << duration.count() << " millisecondes" << std::endl;
+    MPI_Finalize();
 
     return EXIT_SUCCESS;
 }
