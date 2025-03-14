@@ -4,6 +4,8 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <mpi.h>
+
 
 #include "model.hpp"
 #include "display.hpp"
@@ -189,6 +191,18 @@ auto measure_time(bool condition, Obj&& objet, Method&& methode, Args&&... args)
 }
 
 int main(int nargs, char* args[]) {
+    // Initialisation de MPI
+    MPI_Init(&nargs, &args);
+
+    // Obtenir le rang du processus courant
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // Obtenir le nombre total de processus
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    std::cout << "Process " << rank << " out of " << size << " is running." << std::endl;
+    
     auto params = parse_arguments(nargs - 1, &args[1]);
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
@@ -197,24 +211,59 @@ int main(int nargs, char* args[]) {
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
-    while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){ // Modification de la fonction pour mesurer le temps d'exécution
-        if ((simu.time_step() & 31) == 0){
-            std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
-            auto start = std::chrono::high_resolution_clock::now();
-            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
-            auto stop = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        
-            std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
+    bool display_mpi = true;
+    if(display_mpi){
+        int table_size = params.discretization * params.discretization;
+
+        if(rank == 0){
+            // Thread s'occupant de l'affichage
+            std::vector<uint8_t> vegetal_map(table_size, 255u);
+            std::vector<uint8_t> fire_map(table_size, 0u);
+            MPI_Status status;
+
+            MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            while(status.MPI_TAG != 1){
+                displayer->update(vegetal_map, fire_map);
+                MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            }
         }
         else{
-            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+            MPI_Request request;
+            while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){
+                MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
+                MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
+            }
+            MPI_Wait(&request, MPI_STATUS_IGNORE);
+            MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
+            MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
+            MPI_Wait(&request, MPI_STATUS_IGNORE);
         }
-        //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
-        
-        if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
-            break;
-        std::this_thread::sleep_for(0.1s);
     }
+    else {
+        while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){ // Modification de la fonction pour mesurer le temps d'exécution
+            if ((simu.time_step() & 31) == 0){
+                std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
+                auto start = std::chrono::high_resolution_clock::now();
+                displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+                auto stop = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+            
+                std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
+            }
+            else{
+                displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+            }
+            //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
+            
+            if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
+                break;
+            std::this_thread::sleep_for(0.1s);
+        }
+
+    }
+    MPI_Finalize()
+
     return EXIT_SUCCESS;
 }

@@ -11,6 +11,8 @@ endif
 
 ALL= simulation.exe 
 
+CXX=mpic++
+
 default:	help
 
 all: $(ALL)
