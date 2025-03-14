@@ -4,11 +4,14 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <omp.h>
+#include <unistd.h>
 #include <mpi.h>
 
 
 #include "model.hpp"
 #include "display.hpp"
+
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -173,18 +176,18 @@ void display_params(ParamsType const& params) {
 // Fonction générique pour mesurer le temps d'exécution d'une méthode
 template<typename Obj, typename Method, typename... Args>
 auto measure_time(bool condition, Obj&& objet, Method&& methode, Args&&... args) {
-    if(condition){
+    if (condition) {
         auto start = std::chrono::high_resolution_clock::now();
-    
+
         auto result = (std::forward<Obj>(objet).*std::forward<Method>(methode))(std::forward<Args>(args)...);
-    
+
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    
+
         std::cout << "Temps d'exécution : " << duration.count() << " microsecondes" << std::endl;
         return result;
     }
-    else{
+    else {
         auto result = (std::forward<Obj>(objet).*std::forward<Method>(methode))(std::forward<Args>(args)...);
         return result;
     }
