@@ -214,7 +214,8 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
 bool
 Model::update() {
     auto next_front = m_fire_front;
-    for (auto f : m_fire_front; f.first >= start && f.first < end) {
+
+    for (auto f : m_fire_front) {
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
         // Et de la puissance du foyer
@@ -295,88 +296,123 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
     // On commence par calculer la taille de chaque tranche
     int r = m_geometry % n_rank;
     int size = m_geometry / n_rank;
-    int start = rank * size + std::min(rank, r);
-    int end = start + size + (rank < r);
+    int start_y = rank * size + std::min(rank, r);
+    int end_y = start + size + (rank < r);
+    int start = start_y * m_geometry;
+    int end = end_y * m_geometry;
 
     // On récupère les ghost_cells
     update_ghost_cells();
 
-    // On met à jour les cases de la tranche
+    // On met à jour les cases de la tranche qui nous intéresse
     auto next_front = m_fire_front;
-    for (int i = start; i < end; i++) {
+    for (auto f : m_fire_front) {
         // auto f = m_fire_front[i];
-        auto f = ???;
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
-        // Et de la puissance du foyer
-        double        power = log_factor(f.second);
-
-        // On va tester les cases voisines pour contamination par le feu :
-        if (coord.row < m_geometry - 1) {
-            double tirage = pseudo_random(f.first + m_time_step, m_time_step);
-            double green_power = m_vegetation_map[f.first + m_geometry];
-            double correction = power * log_factor(green_power);
-            if (tirage < alphaSouthNorth * p1 * correction) {
-                m_fire_map[f.first + m_geometry] = 255.;
-                next_front[f.first + m_geometry] = 255.;
+        if((f.first >= start)&&(f.first < end)){
+            // Et de la puissance du foyer
+            double        power = log_factor(f.second);
+    
+            // On va tester les cases voisines pour contamination par le feu :
+            if (coord.row < m_geometry - 1) {
+                double tirage = pseudo_random(f.first + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first + m_geometry];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaSouthNorth * p1 * correction) {
+                    m_fire_map[f.first + m_geometry] = 255.;
+                    next_front[f.first + m_geometry] = 255.;
+                }
             }
-        }
-
-        if (coord.row > 0) {
-            double tirage = pseudo_random(f.first * 13427 + m_time_step, m_time_step);
-            double green_power = m_vegetation_map[f.first - m_geometry];
-            double correction = power * log_factor(green_power);
-            if (tirage < alphaNorthSouth * p1 * correction) {
-                m_fire_map[f.first - m_geometry] = 255.;
-                next_front[f.first - m_geometry] = 255.;
+    
+            if (coord.row > 0) {
+                double tirage = pseudo_random(f.first * 13427 + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first - m_geometry];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaNorthSouth * p1 * correction) {
+                    m_fire_map[f.first - m_geometry] = 255.;
+                    next_front[f.first - m_geometry] = 255.;
+                }
             }
-        }
-
-        if (coord.column < m_geometry - 1) {
-            double tirage = pseudo_random(f.first * 13427 * 13427 + m_time_step, m_time_step);
-            double green_power = m_vegetation_map[f.first + 1];
-            double correction = power * log_factor(green_power);
-            if (tirage < alphaEastWest * p1 * correction) {
-                m_fire_map[f.first + 1] = 255.;
-                next_front[f.first + 1] = 255.;
+    
+            if (coord.column < m_geometry - 1) {
+                double tirage = pseudo_random(f.first * 13427 * 13427 + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first + 1];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaEastWest * p1 * correction) {
+                    m_fire_map[f.first + 1] = 255.;
+                    next_front[f.first + 1] = 255.;
+                }
             }
-        }
-
-        if (coord.column > 0) {
-            double tirage = pseudo_random(f.first * 13427 * 13427 * 13427 + m_time_step, m_time_step);
-            double green_power = m_vegetation_map[f.first - 1];
-            double correction = power * log_factor(green_power);
-            if (tirage < alphaWestEast * p1 * correction) {
-                m_fire_map[f.first - 1] = 255.;
-                next_front[f.first - 1] = 255.;
+    
+            if (coord.column > 0) {
+                double tirage = pseudo_random(f.first * 13427 * 13427 * 13427 + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first - 1];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaWestEast * p1 * correction) {
+                    m_fire_map[f.first - 1] = 255.;
+                    next_front[f.first - 1] = 255.;
+                }
             }
-        }
-        // Si le feu est à son max,
-        if (f.second == 255) {   // On regarde si il commence à faiblir pour s'éteindre au bout d'un moment :
-            double tirage = pseudo_random(f.first * 52513 + m_time_step, m_time_step);
-            if (tirage < p2) {
+            // Si le feu est à son max,
+            if (f.second == 255) {   // On regarde si il commence à faiblir pour s'éteindre au bout d'un moment :
+                double tirage = pseudo_random(f.first * 52513 + m_time_step, m_time_step);
+                if (tirage < p2) {
+                    m_fire_map[f.first] >>= 1;
+                    next_front[f.first] >>= 1;
+                }
+            }
+            else {
+                // Foyer en train de s'éteindre.
                 m_fire_map[f.first] >>= 1;
                 next_front[f.first] >>= 1;
+                if (next_front[f.first] == 0) {
+                    next_front.erase(f.first);
+                }
             }
         }
-        else {
-            // Foyer en train de s'éteindre.
-            m_fire_map[f.first] >>= 1;
-            next_front[f.first] >>= 1;
-            if (next_front[f.first] == 0) {
-                next_front.erase(f.first);
+        if (coord.row == (start_y-1)){
+            // On se trouve dans une case enflammé sur la ligne au dessus de la tranche
+            double power = log_factor(f.second);
+            if (coord.row < m_geometry - 1) { // Si on ne se trouve pas sur la dernière ligne
+                double tirage = pseudo_random(f.first + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first + m_geometry];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaSouthNorth * p1 * correction) {
+                    m_fire_map[f.first + m_geometry] = 255.;
+                    next_front[f.first + m_geometry] = 255.;
+                }
             }
         }
-
+        if (coord.row == end_y){
+            // On se trouve dans une case enflammé sur la ligne au dessus de la tranche
+            double power = log_factor(f.second);
+            if (coord.row > 0) {
+                double tirage = pseudo_random(f.first * 13427 + m_time_step, m_time_step);
+                double green_power = m_vegetation_map[f.first - m_geometry];
+                double correction = power * log_factor(green_power);
+                if (tirage < alphaNorthSouth * p1 * correction) {
+                    m_fire_map[f.first - m_geometry] = 255.;
+                    next_front[f.first - m_geometry] = 255.;
+                }
+            }
+        }
     }
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
     for (auto f : m_fire_front) {
-        if (m_vegetation_map[f.first] > 0)
-            m_vegetation_map[f.first] -= 1;
+        // On regarde que les cases de la tranche
+        if((f.first >= start)&&(f.first < end)){
+            if (m_vegetation_map[f.first] > 0)
+                m_vegetation_map[f.first] -= 1;
+        }
+        else {
+            // Supprimer les cases qui ne sont plus dans la tranche
+            m_fire_front.erase(f.first);
+        }
     }
     m_time_step += 1;
-    return !m_fire_front.empty();
+    return !m_fire_front.empty(); // Problème ici, on risque de ne pas avoir un front empty si on laisse des cases bonus
 }
 
 // ====================================================================================================================
