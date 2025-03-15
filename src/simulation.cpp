@@ -194,9 +194,12 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
+
     auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     std::chrono::microseconds somme_calcul = std::chrono::microseconds(0);
     std::chrono::microseconds somme_affichage = std::chrono::microseconds(0);
@@ -222,7 +225,14 @@ int main(int nargs, char* args[]) {
             break;
         //std::this_thread::sleep_for(0.1s);
     }
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::cout << "Temps d'exécution total : " << duration.count() << " millisecondes" << std::endl;
+
     std::cout << "Moyenne temps de calcul : " << (somme_calcul.count() / somme_nombre) << " microsecondes" << std::endl;
     std::cout << "Moyenne temps d'affichage : " << (somme_affichage.count() / somme_nombre) << " microsecondes" << std::endl;
+
+
     return EXIT_SUCCESS;
 }
