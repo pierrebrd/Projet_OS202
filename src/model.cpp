@@ -1,7 +1,6 @@
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
-#include <omp.h>
 #include "model.hpp"
 
 
@@ -62,130 +61,82 @@ Model::Model(double t_length, unsigned t_discretization, std::array<double, 2> t
         alphaNorthSouth = std::abs(m_wind[1] / t_max_wind) + 1;
         alphaSouthNorth = 1. - std::abs(m_wind[1] / t_max_wind);
     }
-
-
-    // Première étape : parallélisation
-    // On initialise le vecteur des clés 
-
-
 }
 // --------------------------------------------------------------------------------------------------------------------
 bool
 Model::update() {
-    // Copie de m_fire_front pour que tous les threads travaillent sur le même état initial
-    std::unordered_map<std::size_t, std::uint8_t> current_front = m_fire_front;
-    std::vector<std::size_t> m_keys;
+    auto next_front = m_fire_front;
+    for (auto f : m_fire_front) {
+        // Récupération de la coordonnée lexicographique de la case en feu :
+        LexicoIndices coord = get_lexicographic_from_index(f.first);
+        // Et de la puissance du foyer
+        double        power = log_factor(f.second);
 
-    // Collection des clés pour la parallélisation
-    for (const auto& f : current_front) {
-        m_keys.push_back(f.first);
-    }
 
-    // On créé des containers pour stocker les chgangelments
-    std::vector<std::unordered_map<std::size_t, std::uint8_t>> thread_local_additions;
-    std::vector<std::vector<std::size_t>> thread_local_removals;
-
-    #pragma omp parallel
-    {
-        #pragma omp single
-        {
-            int num_threads = omp_get_num_threads();
-            thread_local_additions.resize(num_threads);
-            thread_local_removals.resize(num_threads);
-        }
-
-        int thread_id = omp_get_thread_num();
-        auto& local_additions = thread_local_additions[thread_id];
-        auto& local_removals = thread_local_removals[thread_id];
-
-        #pragma omp for schedule(dynamic, 64)
-        for (size_t i = 0; i < m_keys.size(); ++i) {
-            std::size_t key = m_keys[i];
-            std::uint8_t current_value = current_front[key];
-
-            // Récupération de la coordonnée lexicographique de la case en feu
-            LexicoIndices coord = get_lexicographic_from_index(key);
-            // Et de la puissance du foyer
-            double power = log_factor(current_value);
-
-            // On va tester les cases voisines pour contamination par le feu :
-            if (coord.row < m_geometry - 1) {
-                double tirage = pseudo_random(key + m_time_step, m_time_step);
-                double green_power = m_vegetation_map[key + m_geometry];
-                double correction = power * log_factor(green_power);
-                if (tirage < alphaSouthNorth * p1 * correction) {
-                    local_additions[key + m_geometry] = 255;
-                }
-            }
-
-            if (coord.row > 0) {
-                double tirage = pseudo_random(key * 13427 + m_time_step, m_time_step);
-                double green_power = m_vegetation_map[key - m_geometry];
-                double correction = power * log_factor(green_power);
-                if (tirage < alphaNorthSouth * p1 * correction) {
-                    local_additions[key - m_geometry] = 255;
-                }
-            }
-
-            if (coord.column < m_geometry - 1) {
-                double tirage = pseudo_random(key * 13427 * 13427 + m_time_step, m_time_step);
-                double green_power = m_vegetation_map[key + 1];
-                double correction = power * log_factor(green_power);
-                if (tirage < alphaEastWest * p1 * correction) {
-                    local_additions[key + 1] = 255;
-                }
-            }
-
-            if (coord.column > 0) {
-                double tirage = pseudo_random(key * 13427 * 13427 * 13427 + m_time_step, m_time_step);
-                double green_power = m_vegetation_map[key - 1];
-                double correction = power * log_factor(green_power);
-                if (tirage < alphaWestEast * p1 * correction) {
-                    local_additions[key - 1] = 255;
-                }
-            }
-
-            // Mise à jour du feu actuel
-            if (current_value == 255) {
-                double tirage = pseudo_random(key * 52513 + m_time_step, m_time_step);
-                if (tirage < p2) {
-                    local_additions[key] = current_value >> 1;
-                }
-            }
-            else {
-                auto new_value = current_value >> 1;
-                local_additions[key] = new_value;
-                if (new_value == 0) {
-                    local_removals.push_back(key);
-                }
+        // On va tester les cases voisines pour contamination par le feu :
+        if (coord.row < m_geometry - 1) {
+            double tirage = pseudo_random(f.first + m_time_step, m_time_step);
+            double green_power = m_vegetation_map[f.first + m_geometry];
+            double correction = power * log_factor(green_power);
+            if (tirage < alphaSouthNorth * p1 * correction) {
+                m_fire_map[f.first + m_geometry] = 255.;
+                next_front[f.first + m_geometry] = 255.;
             }
         }
-    }
 
-    // Suppression des feux éteints
-
-
-    // Mise à jour de la carte des feux
-    for (auto& additions : thread_local_additions) {
-        for (auto& [key, value] : additions) {
-            m_fire_map[key] = value;
-            m_fire_front[key] = value;
+        if (coord.row > 0) {
+            double tirage = pseudo_random(f.first * 13427 + m_time_step, m_time_step);
+            double green_power = m_vegetation_map[f.first - m_geometry];
+            double correction = power * log_factor(green_power);
+            if (tirage < alphaNorthSouth * p1 * correction) {
+                m_fire_map[f.first - m_geometry] = 255.;
+                next_front[f.first - m_geometry] = 255.;
+            }
         }
-    }
 
-    for (auto& removals : thread_local_removals) {
-        for (auto key : removals) {
-            m_fire_map[key] = 0;
-            m_fire_front.erase(key);
+        if (coord.column < m_geometry - 1) {
+            double tirage = pseudo_random(f.first * 13427 * 13427 + m_time_step, m_time_step);
+            double green_power = m_vegetation_map[f.first + 1];
+            double correction = power * log_factor(green_power);
+            if (tirage < alphaEastWest * p1 * correction) {
+                m_fire_map[f.first + 1] = 255.;
+                next_front[f.first + 1] = 255.;
+            }
         }
-    }
 
-    // Mise à jour de la végétation
-    for (const auto& f : m_fire_front) {
+        if (coord.column > 0) {
+            double tirage = pseudo_random(f.first * 13427 * 13427 * 13427 + m_time_step, m_time_step);
+            double green_power = m_vegetation_map[f.first - 1];
+            double correction = power * log_factor(green_power);
+            if (tirage < alphaWestEast * p1 * correction) {
+                m_fire_map[f.first - 1] = 255.;
+                next_front[f.first - 1] = 255.;
+            }
+        }
+        // Si le feu est à son max,
+        if (f.second == 255) {   // On regarde si il commence à faiblir pour s'éteindre au bout d'un moment :
+            double tirage = pseudo_random(f.first * 52513 + m_time_step, m_time_step);
+            if (tirage < p2) {
+                m_fire_map[f.first] >>= 1;
+                next_front[f.first] >>= 1;
+            }
+        }
+        else {
+            // Foyer en train de s'éteindre.
+            m_fire_map[f.first] >>= 1;
+            next_front[f.first] >>= 1;
+            if (next_front[f.first] == 0) {
+                next_front.erase(f.first);
+            }
+        }
+
+    }
+    // A chaque itération, la végétation à l'endroit d'un foyer diminue
+    m_fire_front = next_front;
+    for (auto f : m_fire_front) {
         if (m_vegetation_map[f.first] > 0)
             m_vegetation_map[f.first] -= 1;
     }
-
     m_time_step += 1;
     return !m_fire_front.empty();
 }
