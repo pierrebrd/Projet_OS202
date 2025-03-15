@@ -26,10 +26,10 @@ public:
     Model& operator = (Model const&) = delete;
     Model& operator = (Model&&) = delete;
 
-    void update_ghost_cells(int rank, int n_rank);
+    void update_ghost_cells(int rank, int n_rank, MPI_Comm newCom);
 
     bool update();
-    bool update(int rank, int n_rank);
+    bool update(int rank, int n_rank, MPI_Comm newCom);
 
 
     unsigned geometry() const { return m_geometry; }

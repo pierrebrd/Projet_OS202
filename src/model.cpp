@@ -69,13 +69,13 @@ int mod(int a, int b) {
 }
 
 void 
-Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
+Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
     // On procède à un découpage en tranche selon l'axe des ordonnées en répartissant le reste r entre les premières tranches
     // On commence par calculer la taille de chaque tranche
-    int r = m_geometry % size;
-    int size = m_geometry / size;
+    int r = m_geometry % n_rank;
+    int size = m_geometry / n_rank;
     int start_y = rank * size + std::min(rank, r); // Coord y de départ
-    int end_y = start + size + (rank < r); // Coord y de fin
+    int end_y = start_y + size + (rank < r); // Coord y de fin
     int start = start_y * m_geometry;
     int end = end_y * m_geometry;
 
@@ -101,7 +101,7 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
     std::copy(ghost_cells_down.begin(), ghost_cells_down.end(), m_fire_map.end() - m_geometry);
 
     // On met à jour les ghost_cells
-    for(int i = 0; i < m_geometry; i++){
+    for(int i = 0; i < (int)m_geometry; i++){
         m_fire_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up[i];
         m_fire_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down[i];
     }
@@ -129,7 +129,7 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
 
 
     // On met à jour les ghost_cells
-    for(int i = 0; i < m_geometry; i++){
+    for(int i = 0; i < (int)m_geometry; i++){
         m_vegetation_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up_vegetal[i];
         m_vegetation_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down_vegetal[i];
     }
@@ -143,6 +143,8 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
     std::vector<std::size_t> sending_keys_down;
     std::vector<uint8_t> sending_values_up;
     std::vector<uint8_t> sending_values_down;
+
+    std::unordered_map<std::size_t, std::uint8_t> current_front = m_fire_front;
     for (const auto& f : current_front) {
         if((f.first >= start) && (f.first < start + m_geometry)){
             sending_keys_up.push_back(f.first);
@@ -160,8 +162,8 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
 
     int size_ghost_up = 0;
     int size_ghost_down = 0;
-    MPI_Irecv(&size_ghost_up, 1, MPI_INT, mod(rank-1, size), 0, newCom, MPI_STATUS_IGNORE, &req5);
-    MPI_Irecv(&size_ghost_down, 1, MPI_INT, (rank+1)%size, 0, newCom, MPI_STATUS_IGNORE, &req6);
+    MPI_Irecv(&size_ghost_up, 1, MPI_INT, mod(rank-1, size), 0, newCom, &req5);
+    MPI_Irecv(&size_ghost_down, 1, MPI_INT, (rank+1)%size, 0, newCom, &req6);
 
     MPI_Send(&size_up, 1, MPI_INT, mod(rank-1, size), 0, newCom);
     MPI_Send(&size_down, 1, MPI_INT, (rank+1)%size, 0, newCom);
@@ -170,14 +172,14 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
     MPI_Wait(&req6, MPI_STATUS_IGNORE);
 
     // On envoie et reçoit les clés
-    std::vector<std::size_t> ghost_cells_up(size_ghost_up, 0u);
-    std::vector<std::size_t> ghost_cells_down(size_ghost_down, 0u);
+    std::vector<std::size_t> ghost_fire_up(size_ghost_up, 0u);
+    std::vector<std::size_t> ghost_fire_down(size_ghost_down, 0u);
 
     MPI_Request req7;
     MPI_Request req8;
 
-    MPI_Irecv(ghost_cells_up.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req7);
-    MPI_Irecv(ghost_cells_down.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req8);
+    MPI_Irecv(ghost_fire_up.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req7);
+    MPI_Irecv(ghost_fire_down.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req8);
 
     MPI_Send(sending_keys_up.data(), size_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
     MPI_Send(sending_keys_down.data(), size_down, MPI_UINT8_T, (rank+1)%size, 0, newCom);
@@ -186,14 +188,14 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
     MPI_Wait(&req8, MPI_STATUS_IGNORE);
 
     // On envoie et reçoit les valeurs associées aux clés
-    std::vector<uint8_t> ghost_cells_up_values(size_ghost_up, 0u);
-    std::vector<uint8_t> ghost_cells_down_values(size_ghost_down, 0u);
+    std::vector<uint8_t> ghost_fire_up_values(size_ghost_up, 0u);
+    std::vector<uint8_t> ghost_fire_down_values(size_ghost_down, 0u);
 
     MPI_Request req9;
     MPI_Request req10;
 
-    MPI_Irecv(ghost_cells_up_values.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req9);
-    MPI_Irecv(ghost_cells_down_values.data()., size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req10);
+    MPI_Irecv(ghost_fire_up_values.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req9);
+    MPI_Irecv(ghost_fire_down_values.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req10);
 
     MPI_Send(sending_values_up.data(), size_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
     MPI_Send(sending_values_down.data(), size_down, MPI_UINT8_T, (rank+1)%size, 0, newCom);
@@ -203,10 +205,10 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
 
     // On met à jour les ghost_cells
     for(int i = 0; i < size_ghost_up; i++){
-        m_fire_front[ghost_cells_up[i]] = ghost_cells_up_values[i];
+        m_fire_front[ghost_fire_up[i]] = ghost_fire_up_values[i];
     }
     for(int i = 0; i < size_ghost_down; i++){
-        m_fire_front[ghost_cells_down[i]] = ghost_cells_down_values[i];
+        m_fire_front[ghost_fire_down[i]] = ghost_fire_down_values[i];
     }
 }
 
@@ -297,12 +299,14 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
     int r = m_geometry % n_rank;
     int size = m_geometry / n_rank;
     int start_y = rank * size + std::min(rank, r);
-    int end_y = start + size + (rank < r);
+    int end_y = start_y + size + (rank < r);
     int start = start_y * m_geometry;
     int end = end_y * m_geometry;
 
     // On récupère les ghost_cells
-    update_ghost_cells();
+    std::cout << "Processus " << rank << "update_ghost_cells" << std::endl;
+    update_ghost_cells(rank, n_rank, newCom);
+    std::cout << "Processus " << rank << "update_ghost_cells done" << std::endl;
 
     // On met à jour les cases de la tranche qui nous intéresse
     auto next_front = m_fire_front;

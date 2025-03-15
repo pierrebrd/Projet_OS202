@@ -217,13 +217,13 @@ int main(int nargs, char* args[]) {
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
+    int discretization = params.discretization;
+    // auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     
     auto start = std::chrono::high_resolution_clock::now();
     
-    if(size > 2){
+    if(size >= 2){
         int table_size = params.discretization * params.discretization;
-
         if(rank == 0){
             // Thread s'occupant de l'affichage
             auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
@@ -233,7 +233,6 @@ int main(int nargs, char* args[]) {
             std::vector<uint8_t> fire_map(table_size, 0u);
             MPI_Status status;
 
-        
             MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             while(status.MPI_TAG != 1){
@@ -242,18 +241,19 @@ int main(int nargs, char* args[]) {
                 MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                     break;
-                // std::this_thread::sleep_for(0.1s);
+                std::this_thread::sleep_for(0.1s);
             }
         }
         else{
             MPI_Request request1;
-            MPI_Request request1;
+            MPI_Request request2;
 
             // Params du thread
+            int n_rank = new_size;
             int r = params.discretization % n_rank;
             int size = params.discretization / n_rank;
             int start_y = new_rank * new_size + std::min(new_rank, r);
-            int end_y = start + size + (rank < r);
+            int end_y = start_y + size + (rank < r);
             int start = start_y * params.discretization;
             int end = end_y * params.discretization;
 
@@ -264,21 +264,57 @@ int main(int nargs, char* args[]) {
 
             while(1){
                 // Envoyer les résultats au processus 0' pour gather l'ensemble dans une seule grille
+                int total_size = simu.fire_map().size();  // Taille totale du vecteur
+
+                if (start < 0 || end > total_size || start >= end) {
+                    std::cerr << "[ERREUR] Indices invalides : start=" << start << ", end=" << end << ", taille=" << total_size << std::endl;
+                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+                    return EXIT_FAILURE;
+                }
+                
                 std::vector<uint8_t> small_fire_map(simu.fire_map().begin() + start, simu.fire_map().begin() + end);
                 std::vector<uint8_t> small_vegetal_map(simu.vegetal_map().begin() + start, simu.vegetal_map().begin() + end);
     
-                std::vector<uint8_t> fire_map(params.discretization * params.discretization, 0u);
-                std::vector<uint8_t> vegetal_map(params.discretization * params.discretization, 255u);
-                
-                MPI_Gather(small_fire_map.data(), end-start, MPI_UINT8, fire_map.data(), discretization*discretization, MPI_UINT8, 0, new_comm);
-                MPI_Gather(small_vegetal_map.data(), end-start, MPI_UINT8, vegetal_map.data(), discretization*discretization, MPI_UINT8, 0, new_comm);
+                // Définition des tailles d'envoi pour chaque processus
+                int local_fire_size = end - start;
+                int local_vegetal_size = end - start;
+
+                // Collecter les tailles d'envoi sur le processus root
+                std::vector<int> recv_counts(size, 0);
+                MPI_Gather(&local_fire_size, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, new_comm);
+
+                // Calculer les offsets (`displs`) sur le processus root
+                std::vector<int> displs(size, 0);
+                if (new_rank == 0) {
+                    for (int i = 1; i < size; i++) {
+                        displs[i] = displs[i - 1] + recv_counts[i - 1];
+                    }
+                }
+
+                // Allocation des buffers finaux sur le processus root
+                std::vector<uint8_t> fire_map;
+                std::vector<uint8_t> vegetal_map;
+                if (new_rank == 0) {
+                    int total_size = displs[size - 1] + recv_counts[size - 1];  // Taille totale requise
+                    fire_map.resize(total_size);
+                    vegetal_map.resize(total_size);
+                }
+
+                // Exécuter `MPI_Gatherv`
+                MPI_Gatherv(small_fire_map.data(), local_fire_size, MPI_UINT8_T,
+                            fire_map.data(), recv_counts.data(), displs.data(), MPI_UINT8_T,
+                            0, new_comm);
+
+                MPI_Gatherv(small_vegetal_map.data(), local_vegetal_size, MPI_UINT8_T,
+                            vegetal_map.data(), recv_counts.data(), displs.data(), MPI_UINT8_T,
+                            0, new_comm);
     
                 // Mettre à jour le modèle de 0' et l'envoyer au 0 pour affichage
                 if (new_rank == 0){
-                    MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
-                    MPI_Wait(&request, MPI_STATUS_IGNORE);
-                    MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
-                    MPI_Wait(&request, MPI_STATUS_IGNORE);
+                    MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request1);                
+                    MPI_Wait(&request1, MPI_STATUS_IGNORE);
+                    MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request2);
+                    MPI_Wait(&request2, MPI_STATUS_IGNORE);
                 }
                 // Faire le calcul
                 bool run = simu.update(new_rank, new_size, new_comm);
@@ -292,7 +328,10 @@ int main(int nargs, char* args[]) {
         }
     }
     else {
-        while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){ // Modification de la fonction pour mesurer le temps d'exécution
+        auto displayer = Displayer::init_instance( params.discretization, params.discretization );
+        auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
+        SDL_Event event;
+        while (measure_time(((simu.time_step() & 31) == 0), simu, static_cast<bool (Model::*)()>(&Model::update))){ // Modification de la fonction pour mesurer le temps d'exécution
             if ((simu.time_step() & 31) == 0){
                 std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
                 auto start = std::chrono::high_resolution_clock::now();
@@ -309,7 +348,7 @@ int main(int nargs, char* args[]) {
             
             if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                 break;
-            // std::this_thread::sleep_for(0.1s);
+            std::this_thread::sleep_for(0.1s);
         }
 
     }
