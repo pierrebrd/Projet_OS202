@@ -16,7 +16,7 @@ endif
 
 ALL= simulation.exe 
 
-CXX=mpic++
+CXX=mpic++ -fopenmp
 
 default:	help
 

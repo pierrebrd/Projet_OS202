@@ -205,12 +205,13 @@ int main(int nargs, char* args[]) {
     int size;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     std::cout << "Process " << rank << " out of " << size << " is running." << std::endl;
-    
+
     auto params = parse_arguments(nargs - 1, &args[1]);
     display_params(params);
     if (!check_params(params)) return EXIT_FAILURE;
 
-    auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
+
+
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
@@ -219,56 +220,80 @@ int main(int nargs, char* args[]) {
 
 
     bool display_mpi = true;
-    if(size == 2){
+    if (size == 2) {
+        std::cout << "Simulation en mode MPI" << std::endl;
         int table_size = params.discretization * params.discretization;
-        if(rank == 0){
+        if (rank == 0) {
+            auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
+
             // Thread s'occupant de l'affichage
             std::vector<uint8_t> vegetal_map(table_size, 255u);
             std::vector<uint8_t> fire_map(table_size, 0u);
             MPI_Status status;
 
-        
-            MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            while(status.MPI_TAG != 1){
-                displayer->update(vegetal_map, fire_map);
-                MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            while (status.MPI_TAG != 1) {
+
+                // Check for SDL quit events and send a message back to the computation process
+                bool ready = true;
+                //std::cout << "Process 0 : Waiting for message from process 1" << std::endl;
+                MPI_Send(&ready, 1, MPI_C_BOOL, 1, 0, MPI_COMM_WORLD); // Send ready signal
+                MPI_Recv(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-                if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
+                displayer->update(vegetal_map, fire_map);
+
+                if (SDL_PollEvent(&event) && event.type == SDL_QUIT) {
+                    bool ready = false;
+                    MPI_Send(&ready, 1, MPI_C_BOOL, 1, 0, MPI_COMM_WORLD); // Send ready signal
                     break;
-                // std::this_thread::sleep_for(0.1s);
+                    // std::this_thread::sleep_for(0.1s);
+                }
             }
+
         }
-        else{
-            MPI_Request request;
-            while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){
-                MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
-                MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
+        else {
+            while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)) {
+                // Check for incoming message from display process
+                bool ready = false;
+                int flag = 0;
+                MPI_Status status;
+                MPI_Iprobe(0, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
+                if (flag) {
+                    //std::cout << "Process 1 : Waiting for message from process 0" << std::endl;
+                    MPI_Recv(&ready, 1, MPI_C_BOOL, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                    if (!ready)
+                        break; // Quitter la boucle si le processus d'affichage a quitté
+                    // If we have a message, receive it
+                    // And send the maps to the display process
+                    MPI_Send(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD);
+                    MPI_Send(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD);
+
+                }
             }
-            MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-            MPI_Wait(&request, MPI_STATUS_IGNORE);
-            MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-            MPI_Wait(&request, MPI_STATUS_IGNORE);
+            bool ready = false;
+            MPI_Status status;
+            MPI_Recv(&ready, 1, MPI_C_BOOL, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Send(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD);
+            MPI_Send(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD);
         }
     }
     else {
-        while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){ // Modification de la fonction pour mesurer le temps d'exécution
-            if ((simu.time_step() & 31) == 0){
+        auto displayer = Displayer::init_instance(params.discretization, params.discretization); // On lance la fenêtre d'affichage
+
+        while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)) { // Modification de la fonction pour mesurer le temps d'exécution
+            if ((simu.time_step() & 31) == 0) {
                 std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
                 auto start = std::chrono::high_resolution_clock::now();
                 displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
                 auto stop = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-            
-                std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
+
+                //std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
             }
-            else{
+            else {
                 displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
             }
             //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
-            
+
             if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                 break;
             // std::this_thread::sleep_for(0.1s);
