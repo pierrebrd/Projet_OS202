@@ -26,7 +26,11 @@ public:
     Model& operator = (Model const&) = delete;
     Model& operator = (Model&&) = delete;
 
+    void update_ghost_cells(int rank, int n_rank);
+
     bool update();
+    bool update(int rank, int n_rank);
+
 
     unsigned geometry() const { return m_geometry; }
     std::vector<std::uint8_t> vegetal_map() const { return m_vegetation_map; }
