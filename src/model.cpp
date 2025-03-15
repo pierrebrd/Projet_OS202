@@ -80,60 +80,82 @@ Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
     int end = end_y * m_geometry;
 
     // Partie pour le feu
+std::cout  << "Rank:" << rank << " Ghost cells: Fire start" << std::endl;
     std::vector<uint8_t> ghost_cells_up(m_geometry, 0u);
     std::vector<uint8_t> ghost_cells_down(m_geometry, 0u);
 
     std::vector<uint8_t> sending_cells_up(m_fire_map.begin() + start, m_fire_map.begin() + start + m_geometry);
     std::vector<uint8_t> sending_cells_down(m_fire_map.begin() + end - m_geometry, m_fire_map.begin() + end);
+std::cout  << "Rank:" << rank << " Ghost cells: Fire Init done" << std::endl;
 
     MPI_Request req1;
     MPI_Request req2;
-    MPI_Irecv(ghost_cells_up.data(), m_geometry, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req1);                
-    MPI_Irecv(ghost_cells_down.data(), m_geometry, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req1);                
+    MPI_Irecv(ghost_cells_up.data(), m_geometry, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom, &req1);                
+    MPI_Irecv(ghost_cells_down.data(), m_geometry, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom, &req2);                
+std::cout  << "Rank:" << rank << " Ghost cells: Fire IRecv done" << std::endl;
     
-    MPI_Send(sending_cells_up.data(), m_geometry, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
-    MPI_Send(sending_cells_down.data(), m_geometry, MPI_UINT8_T, (rank+1)%size, 0, newCom);
+    MPI_Send(sending_cells_up.data(), m_geometry, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom);
+    MPI_Send(sending_cells_down.data(), m_geometry, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom);
+std::cout  << "Rank:" << rank << " Ghost cells: Fire Send done" << std::endl;
 
     MPI_Wait(&req1, MPI_STATUS_IGNORE);
     MPI_Wait(&req2, MPI_STATUS_IGNORE);
+std::cout  << "Rank:" << rank << " Ghost cells: Fire Wait done" << std::endl;
 
-    std::copy(ghost_cells_up.begin(), ghost_cells_up.end(), m_fire_map.begin() + start);
-    std::copy(ghost_cells_down.begin(), ghost_cells_down.end(), m_fire_map.end() - m_geometry);
-
-    // On met à jour les ghost_cells
-    for(int i = 0; i < (int)m_geometry; i++){
-        m_fire_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up[i];
-        m_fire_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down[i];
+    if(start - m_geometry > 0){
+        std::copy(ghost_cells_up.begin(), ghost_cells_up.end(), m_fire_map.begin() + start - m_geometry);
+    }
+    if(end < m_fire_map.size()){
+        std::copy(ghost_cells_down.begin(), ghost_cells_down.end(), m_fire_map.begin() + end);
     }
 
+std::cout  << "Rank:" << rank << " Ghost cells: Fire Copy done" << std::endl;
+    // On met à jour les ghost_cells
+    // for(int i = 0; i < (int)m_geometry; i++){
+    //     m_fire_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up[i];
+    //     m_fire_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down[i];
+    // }
+std::cout  << "Rank:" << rank << " Ghost cells: Fire Update done" << std::endl;
+
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal start" << std::endl;
     // Partie pour le végetal
     std::vector<uint8_t> ghost_cells_up_vegetal(m_geometry, 0u);
     std::vector<uint8_t> ghost_cells_down_vegetal(m_geometry, 0u);
 
     std::vector<uint8_t> sending_cells_up_vegetal(m_vegetation_map.begin() + start, m_vegetation_map.begin() + start + m_geometry);
     std::vector<uint8_t> sending_cells_down_vegetal(m_vegetation_map.begin()+ end - m_geometry, m_vegetation_map.begin() + end);
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal Init done" << std::endl;
 
     MPI_Request req3;
     MPI_Request req4;
-    MPI_Irecv(ghost_cells_up_vegetal.data(), m_geometry, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req3);
-    MPI_Irecv(ghost_cells_down_vegetal.data(), m_geometry, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req4);
+    MPI_Irecv(ghost_cells_up_vegetal.data(), m_geometry, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom, &req3);
+    MPI_Irecv(ghost_cells_down_vegetal.data(), m_geometry, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom, &req4);
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal IRecv done" << std::endl;
     
-    MPI_Send(sending_cells_up_vegetal.data(), m_geometry, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
-    MPI_Send(sending_cells_down_vegetal.data(), m_geometry, MPI_UINT8_T, (rank+1)%size, 0, newCom);
+    MPI_Send(sending_cells_up_vegetal.data(), m_geometry, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom);
+    MPI_Send(sending_cells_down_vegetal.data(), m_geometry, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom);
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal Send done" << std::endl;
 
     MPI_Wait(&req3, MPI_STATUS_IGNORE);
     MPI_Wait(&req4, MPI_STATUS_IGNORE);
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal Wait done" << std::endl;
 
-    std::copy(ghost_cells_up_vegetal.begin(), ghost_cells_up_vegetal.end(), m_vegetation_map.begin() + start);
-    std::copy(ghost_cells_down_vegetal.begin(), ghost_cells_down_vegetal.end(), m_vegetation_map.end() - m_geometry);
-
-
-    // On met à jour les ghost_cells
-    for(int i = 0; i < (int)m_geometry; i++){
-        m_vegetation_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up_vegetal[i];
-        m_vegetation_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down_vegetal[i];
+    if(start - m_geometry > 0){
+        std::copy(ghost_cells_up_vegetal.begin(), ghost_cells_up_vegetal.end(), m_vegetation_map.begin() + start - m_geometry);
     }
+    if(end < m_vegetation_map.size()){
+        std::copy(ghost_cells_down_vegetal.begin(), ghost_cells_down_vegetal.end(), m_vegetation_map.begin() + end);
+    }
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal Copy done" << std::endl;
 
+    // // On met à jour les ghost_cells
+    // for(int i = 0; i < (int)m_geometry; i++){
+    //     m_vegetation_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up_vegetal[i];
+    //     m_vegetation_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down_vegetal[i];
+    // }
+std::cout  << "Rank:" << rank << " Ghost cells: Vegetal Update done" << std::endl;
+
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront start" << std::endl;
     // Partie pour le fire_front
     // Collection des clés pour la parallélisation : on récupère et envoie les coordonnées des cases en feu adjacentes
     MPI_Request req5;
@@ -155,6 +177,7 @@ Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
             sending_values_down.push_back(f.second);
         }
     }
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Init done" << std::endl;
 
     // On envoie et reçoit les tailles des vecteurs
     int size_up = sending_keys_up.size();
@@ -162,54 +185,70 @@ Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
 
     int size_ghost_up = 0;
     int size_ghost_down = 0;
-    MPI_Irecv(&size_ghost_up, 1, MPI_INT, mod(rank-1, size), 0, newCom, &req5);
-    MPI_Irecv(&size_ghost_down, 1, MPI_INT, (rank+1)%size, 0, newCom, &req6);
+    MPI_Irecv(&size_ghost_up, 1, MPI_INT, mod(rank-1, n_rank), 0, newCom, &req5);
+    MPI_Irecv(&size_ghost_down, 1, MPI_INT, (rank+1)%n_rank, 0, newCom, &req6);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontSize IRecv done" << std::endl;
 
-    MPI_Send(&size_up, 1, MPI_INT, mod(rank-1, size), 0, newCom);
-    MPI_Send(&size_down, 1, MPI_INT, (rank+1)%size, 0, newCom);
+    MPI_Send(&size_up, 1, MPI_INT, mod(rank-1, n_rank), 0, newCom);
+    MPI_Send(&size_down, 1, MPI_INT, (rank+1)%n_rank, 0, newCom);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontSize Send done" << std::endl;
 
     MPI_Wait(&req5, MPI_STATUS_IGNORE);
     MPI_Wait(&req6, MPI_STATUS_IGNORE);
 
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontSize Wait done" << std::endl;
     // On envoie et reçoit les clés
     std::vector<std::size_t> ghost_fire_up(size_ghost_up, 0u);
     std::vector<std::size_t> ghost_fire_down(size_ghost_down, 0u);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Init done" << std::endl;
 
     MPI_Request req7;
     MPI_Request req8;
 
-    MPI_Irecv(ghost_fire_up.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req7);
-    MPI_Irecv(ghost_fire_down.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req8);
+    MPI_Irecv(ghost_fire_up.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom, &req7);
+    MPI_Irecv(ghost_fire_down.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom, &req8);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Irecv done" << std::endl;
 
-    MPI_Send(sending_keys_up.data(), size_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
-    MPI_Send(sending_keys_down.data(), size_down, MPI_UINT8_T, (rank+1)%size, 0, newCom);
+    MPI_Send(sending_keys_up.data(), size_up, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom);
+    MPI_Send(sending_keys_down.data(), size_down, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Isend done" << std::endl;
 
     MPI_Wait(&req7, MPI_STATUS_IGNORE);
     MPI_Wait(&req8, MPI_STATUS_IGNORE);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Wait done" << std::endl;
 
     // On envoie et reçoit les valeurs associées aux clés
     std::vector<uint8_t> ghost_fire_up_values(size_ghost_up, 0u);
     std::vector<uint8_t> ghost_fire_down_values(size_ghost_down, 0u);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontValues Init done" << std::endl;
 
     MPI_Request req9;
     MPI_Request req10;
 
-    MPI_Irecv(ghost_fire_up_values.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom, &req9);
-    MPI_Irecv(ghost_fire_down_values.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%size, 0, newCom, &req10);
+    MPI_Irecv(ghost_fire_up_values.data(), size_ghost_up, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom, &req9);
+    MPI_Irecv(ghost_fire_down_values.data(), size_ghost_down, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom, &req10);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontValues Irecv done" << std::endl;
 
-    MPI_Send(sending_values_up.data(), size_up, MPI_UINT8_T, mod(rank-1, size), 0, newCom);
-    MPI_Send(sending_values_down.data(), size_down, MPI_UINT8_T, (rank+1)%size, 0, newCom);
+    MPI_Send(sending_values_up.data(), size_up, MPI_UINT8_T, mod(rank-1, n_rank), 0, newCom);
+    MPI_Send(sending_values_down.data(), size_down, MPI_UINT8_T, (rank+1)%n_rank, 0, newCom);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontValues Send done" << std::endl;
 
     MPI_Wait(&req9, MPI_STATUS_IGNORE);
     MPI_Wait(&req10, MPI_STATUS_IGNORE);
+std::cout  << "Rank:" << rank << " Ghost cells: FireFrontValues Wait done" << std::endl;
 
     // On met à jour les ghost_cells
-    for(int i = 0; i < size_ghost_up; i++){
-        m_fire_front[ghost_fire_up[i]] = ghost_fire_up_values[i];
+    if(rank != 0){
+        for(int i = 0; i < size_ghost_up; i++){
+            m_fire_front[ghost_fire_up[i]] = ghost_fire_up_values[i];
+        }
     }
-    for(int i = 0; i < size_ghost_down; i++){
-        m_fire_front[ghost_fire_down[i]] = ghost_fire_down_values[i];
+    if(rank != n_rank - 1){
+        for(int i = 0; i < size_ghost_down; i++){
+            m_fire_front[ghost_fire_down[i]] = ghost_fire_down_values[i];
+        }
     }
+std::cout  << "Rank:" << rank << " Ghost cells: FireFront Update done" << std::endl;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -304,9 +343,9 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
     int end = end_y * m_geometry;
 
     // On récupère les ghost_cells
-    std::cout << "Processus " << rank << "update_ghost_cells" << std::endl;
+std::cout << "Processus " << rank << " update_ghost_cells todo" << std::endl;
     update_ghost_cells(rank, n_rank, newCom);
-    std::cout << "Processus " << rank << "update_ghost_cells done" << std::endl;
+std::cout << "Processus " << rank << "update_ghost_cells done" << std::endl;
 
     // On met à jour les cases de la tranche qui nous intéresse
     auto next_front = m_fire_front;
@@ -375,7 +414,7 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
                 }
             }
         }
-        if (coord.row == (start_y-1)){
+        if ((coord.row == (start_y-1))&&(rank != 0)){
             // On se trouve dans une case enflammé sur la ligne au dessus de la tranche
             double power = log_factor(f.second);
             if (coord.row < m_geometry - 1) { // Si on ne se trouve pas sur la dernière ligne
@@ -388,7 +427,7 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
                 }
             }
         }
-        if (coord.row == end_y){
+        if ((coord.row == end_y)&&(rank != n_rank-1)){
             // On se trouve dans une case enflammé sur la ligne au dessus de la tranche
             double power = log_factor(f.second);
             if (coord.row > 0) {
@@ -404,15 +443,13 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
     }
     // A chaque itération, la végétation à l'endroit d'un foyer diminue
     m_fire_front = next_front;
-    for (auto f : m_fire_front) {
-        // On regarde que les cases de la tranche
-        if((f.first >= start)&&(f.first < end)){
-            if (m_vegetation_map[f.first] > 0)
-                m_vegetation_map[f.first] -= 1;
-        }
-        else {
-            // Supprimer les cases qui ne sont plus dans la tranche
-            m_fire_front.erase(f.first);
+    for (auto it = m_fire_front.begin(); it != m_fire_front.end(); ) {
+        if (it->first >= start && it->first < end) {
+            if (m_vegetation_map[it->first] > 0)
+                m_vegetation_map[it->first] -= 1;
+            ++it;
+        } else {
+            it = m_fire_front.erase(it);  // erase retourne l'itérateur vers l'élément suivant
         }
     }
     m_time_step += 1;
