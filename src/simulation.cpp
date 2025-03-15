@@ -170,7 +170,7 @@ void display_params(ParamsType const& params) {
 
 // Fonction générique pour mesurer le temps d'exécution d'une méthode
 template<typename Obj, typename Method, typename... Args>
-auto measure_time(bool condition, Obj&& objet, Method&& methode, Args&&... args) {
+auto measure_time(bool condition, Obj&& objet, Method&& methode, std::chrono::microseconds& somme_duration, Args&&... args) {
     if (condition) {
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -179,6 +179,7 @@ auto measure_time(bool condition, Obj&& objet, Method&& methode, Args&&... args)
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
+        somme_duration += duration;
         std::cout << "Temps d'exécution : " << duration.count() << " microsecondes" << std::endl;
         return result;
     }
@@ -197,18 +198,23 @@ int main(int nargs, char* args[]) {
     auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
     SDL_Event event;
 
-    while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)) { // Modification de la fonction pour mesurer le temps d'exécution
+    std::chrono::microseconds somme_calcul = std::chrono::microseconds(0);
+    std::chrono::microseconds somme_affichage = std::chrono::microseconds(0);
+    auto somme_nombre = 0;
+
+    while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update, somme_calcul)) { // Modification de la fonction pour mesurer le temps d'exécution
         if ((simu.time_step() & 31) == 0) {
             std::cout << "Time step " << simu.time_step() << "\n===============" << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
             auto stop = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-
+            somme_affichage += duration;
+            somme_nombre++;
             std::cout << "Temps d'exécution affichage: " << duration.count() << " microsecondes" << std::endl;
         }
         else {
-            //displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
+            displayer->update(simu.vegetal_map(), simu.fire_map()); // On met à jour l'affichage
         }
         //measure_time(((simu.time_step() & 31) == 0), displayer, &Displayer::update, simu.vegetal_map(), simu.fire_map()); // Modification de la fonction pour mesurer le temps d'exécution
 
@@ -216,5 +222,7 @@ int main(int nargs, char* args[]) {
             break;
         //std::this_thread::sleep_for(0.1s);
     }
+    std::cout << "Moyenne temps de calcul : " << (somme_calcul.count() / somme_nombre) << " microsecondes" << std::endl;
+    std::cout << "Moyenne temps d'affichage : " << (somme_affichage.count() / somme_nombre) << " microsecondes" << std::endl;
     return EXIT_SUCCESS;
 }
