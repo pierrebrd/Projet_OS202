@@ -236,18 +236,15 @@ int main(int nargs, char* args[]) {
 
             MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-std::cout << "Display: recv 1" << std::endl;
             
             while(status.MPI_TAG != 1){
                 displayer->update(vegetal_map, fire_map);
-std::cout << "Display: update" << std::endl;
                 MPI_Recv(vegetal_map.data(), vegetal_map.size() , MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 MPI_Recv(fire_map.data(), fire_map.size(), MPI_UINT8_T, 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-std::cout << "Display: recv" << std::endl;
                 
                 if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                     break;
-                std::this_thread::sleep_for(0.1s);
+                // std::this_thread::sleep_for(0.1s);
             }
         }
         else{
@@ -267,20 +264,14 @@ std::cout << "Display: recv" << std::endl;
             // Attention à ce que toutes les initialisations soient strictement identiques pour tous les processus !
             // Faire attention au pseudo aléatoires dans les différents processus.
             auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
-std::cout << "Model: init done" << std::endl;
-            while(1){
-std::cout << "Step 0: update todo" << std::endl;
+            int run = 1;
+
+            while(run){
                 // Faire le calcul
-                bool run = simu.update(new_rank, new_size, new_comm);
-std::cout << "Step 0: update done" << std::endl;
+                int next_run = simu.update(new_rank, new_size, new_comm);
 
                 // Envoyer les résultats au processus 0' pour gather l'ensemble dans une seule grille
                 int total_size = simu.fire_map().size();  // Taille totale du vecteur
-std::cout << "Rank :" << new_rank << "Total size : " << total_size << std::endl;
-std::cout << "Rank :" << new_rank << "Start : " << start << std::endl;
-std::cout << "Rank :" << new_rank << "End : " << end << std::endl;
-// std::cout << "Begin :" << simu.fire_map().begin() << std::endl;
-// std::cout << "End :" << simu.fire_map().end() << std::endl;
 
                 if (start < 0 || end > total_size || start >= end) {
                     std::cerr << "[ERREUR] Indices invalides : start=" << start << ", end=" << end << ", taille=" << total_size << std::endl;
@@ -294,7 +285,6 @@ std::cout << "Rank :" << new_rank << "End : " << end << std::endl;
                 std::copy(it, it2, small_fire_map.begin());
 
                 // std::vector<uint8_t> small_fire_map(simu.fire_map().begin() + start, simu.fire_map().begin() + end - 1);
-std::cout << "Rank :" << new_rank << "Step 1: Extract fire done" << std::endl;
                 
                 std::vector<uint8_t> small_vegetal_map(end-start);
                 auto it3 = simu.vegetal_map().begin() + start;
@@ -303,8 +293,6 @@ std::cout << "Rank :" << new_rank << "Step 1: Extract fire done" << std::endl;
 
                 // std::vector<uint8_t> small_vegetal_map(simu.vegetal_map().begin() + start, simu.vegetal_map().begin() + end - 1);
                 
-std::cout << "Rank :" << new_rank << "Step 1bis: Extract small done" << std::endl;
-
                 // Définition des tailles d'envoi pour chaque processus
                 int local_fire_size = end - start;
                 int local_vegetal_size = end - start;
@@ -313,15 +301,14 @@ std::cout << "Rank :" << new_rank << "Step 1bis: Extract small done" << std::end
                 std::vector<int> recv_counts(new_size, 0);
                 MPI_Gather(&local_fire_size, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, new_comm);
 
-std::cout << "Rank :" << new_rank << "Step 2: Gather done" << std::endl;
-
                 // Calculer les offsets (`displs`) sur le processus root
                 std::vector<int> displs(new_size, 0);
                 if (new_rank == 0) {
                     for (int i = 1; i < new_size; i++) {
                         displs[i] = displs[i - 1] + recv_counts[i - 1];
                     }
-                }
+                }            // }
+
 
                 // Allocation des buffers finaux sur le processus root
                 std::vector<uint8_t> fire_map;
@@ -332,7 +319,6 @@ std::cout << "Rank :" << new_rank << "Step 2: Gather done" << std::endl;
                     vegetal_map.resize(total_size);
                 }
 
-std::cout << "Rank :" << new_rank << "Step 3: Gatherv 1 todo" << std::endl;
                 // Exécuter `MPI_Gatherv`
                 MPI_Gatherv(small_fire_map.data(), local_fire_size, MPI_UINT8_T,
                             fire_map.data(), recv_counts.data(), displs.data(), MPI_UINT8_T,
@@ -343,25 +329,24 @@ std::cout << "Rank :" << new_rank << "Step 3: Gatherv 1 todo" << std::endl;
                             vegetal_map.data(), recv_counts.data(), displs.data(), MPI_UINT8_T,
                             0, new_comm);
     
-std::cout << "Rank :" << new_rank << "Step 4: Gatherv done" << std::endl;
-
+                MPI_Reduce (&next_run, &run, 1, MPI_INT, MPI_LOR, 0, new_comm);
                 // Mettre à jour le modèle de 0' et l'envoyer au 0 pour affichage
                 if (new_rank == 0){
                     MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request1);                
                     MPI_Wait(&request1, MPI_STATUS_IGNORE);
                     MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request2);
                     MPI_Wait(&request2, MPI_STATUS_IGNORE);
-std::cout << "Rank :" << new_rank << "Step 4bis: display sent" << std::endl;
                 }
-                
-
             }
-                // MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-                // MPI_Wait(&request, MPI_STATUS_IGNORE);
-                // MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-                // MPI_Wait(&request, MPI_STATUS_IGNORE);
-            // while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){
-            // }
+            MPI_Request r1;
+            MPI_Request r2;
+
+            std::vector<uint8_t> fire_map;
+            std::vector<uint8_t> vegetal_map;
+            MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r1);
+            MPI_Wait(&r1, MPI_STATUS_IGNORE);
+            MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r2);
+            MPI_Wait(&r2, MPI_STATUS_IGNORE);
         }
     }
     else {
@@ -385,7 +370,7 @@ std::cout << "Rank :" << new_rank << "Step 4bis: display sent" << std::endl;
             
             if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
                 break;
-            std::this_thread::sleep_for(0.1s);
+            // std::this_thread::sleep_for(0.1s);
         }
 
     }
