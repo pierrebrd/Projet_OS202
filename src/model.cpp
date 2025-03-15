@@ -126,7 +126,7 @@ Model::update_ghost_cells(int rank, int size, MPI_Comm newCom){
 bool
 Model::update() {
     auto next_front = m_fire_front;
-    for (auto f : m_fire_front) {
+    for (auto f : m_fire_front; f.first >= start && f.first < end) {
         // Récupération de la coordonnée lexicographique de la case en feu :
         LexicoIndices coord = get_lexicographic_from_index(f.first);
         // Et de la puissance du foyer
