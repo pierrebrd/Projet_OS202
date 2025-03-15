@@ -249,41 +249,44 @@ int main(int nargs, char* args[]) {
             MPI_Request request1;
             MPI_Request request1;
 
+            // Params du thread
+            int r = params.discretization % n_rank;
+            int size = params.discretization / n_rank;
+            int start_y = new_rank * new_size + std::min(new_rank, r);
+            int end_y = start + size + (rank < r);
+            int start = start_y * params.discretization;
+            int end = end_y * params.discretization;
+
             // Créer la grille associée au processus. La grille est de taille maximale mais seule la partie associée au processus est modifiée.
             // Attention à ce que toutes les initialisations soient strictement identiques pour tous les processus !
             // Faire attention au pseudo aléatoires dans les différents processus.
             auto simu = Model(params.length, params.discretization, params.wind, params.start); // On lance la simulation
 
-            // Envoyer les grilles au processus 0
-
-            // Faire le calcul
-            simu.update_ghost_cells(new_rank, new_size);
-            simu.update(new_rank, new_size);
-
-            // Envoyer les résultats au processus 0' pour gather l'ensemble dans une seule grille
-            int r = params.discretization % n_rank;
-            int size = params.discretization / n_rank;
-            int start = new_rank * new_size + std::min(new_rank, r);
-            int end = start + size + (rank < r);
-
-            std::vector<uint8_t> small_fire_map = simu.fire_map()//TODO EXTRACT
-            std::vector<uint8_t> small_vegetal_map = simu.vegetal_map()//TODO EXTRACT
-
-            MPI_Gather()//TODO
-            // Mettre à jour le modèle de 0' et l'envoyer au 0 pour affichage
-            if (new_rank == 0){
-                i_s
-
-                MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
-                MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
-
-                MPI_Isend(simu.vegetal_map().data(), simu.vegetal_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
-                MPI_Isend(simu.fire_map().data(), simu.fire_map().size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
-                MPI_Wait(&request, MPI_STATUS_IGNORE);
+            while(1){
+                // Envoyer les résultats au processus 0' pour gather l'ensemble dans une seule grille
+                std::vector<uint8_t> small_fire_map(simu.fire_map().begin() + start, simu.fire_map().begin() + end);
+                std::vector<uint8_t> small_vegetal_map(simu.vegetal_map().begin() + start, simu.vegetal_map().begin() + end);
+    
+                std::vector<uint8_t> fire_map(params.discretization * params.discretization, 0u);
+                std::vector<uint8_t> vegetal_map(params.discretization * params.discretization, 255u);
+                
+                MPI_Gather(small_fire_map.data(), end-start, MPI_UINT8, fire_map.data(), discretization*discretization, MPI_UINT8, 0, new_comm);
+                MPI_Gather(small_vegetal_map.data(), end-start, MPI_UINT8, vegetal_map.data(), discretization*discretization, MPI_UINT8, 0, new_comm);
+    
+                // Mettre à jour le modèle de 0' et l'envoyer au 0 pour affichage
+                if (new_rank == 0){
+                    MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);                
+                    MPI_Wait(&request, MPI_STATUS_IGNORE);
+                    MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 0, MPI_COMM_WORLD, &request);
+                    MPI_Wait(&request, MPI_STATUS_IGNORE);
+                }
+                // Faire le calcul
+                bool run = simu.update(new_rank, new_size, new_comm);
             }
+                // MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
+                // MPI_Wait(&request, MPI_STATUS_IGNORE);
+                // MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &request);
+                // MPI_Wait(&request, MPI_STATUS_IGNORE);
             // while (measure_time(((simu.time_step() & 31) == 0), simu, &Model::update)){
             // }
         }
