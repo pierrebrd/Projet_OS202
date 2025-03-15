@@ -245,8 +245,8 @@ int main(int nargs, char* args[]) {
             }
         }
         else {
-            bool display_ended = false;
             // Processus d'avancement de la simulation
+            bool display_ended = false;
             while (simu.update()) {
                 // On regarde si le processus d'affichage est prêt à recevoir les données
                 bool ready = false;
