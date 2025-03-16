@@ -273,25 +273,15 @@ int main(int nargs, char* args[]) {
                 // Envoyer les résultats au processus 0' pour gather l'ensemble dans une seule grille
                 int total_size = simu.fire_map().size();  // Taille totale du vecteur
 
-                if (start < 0 || end > total_size || start >= end) {
-                    std::cerr << "[ERREUR] Indices invalides : start=" << start << ", end=" << end << ", taille=" << total_size << std::endl;
-                    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-                    return EXIT_FAILURE;
-                }
-
                 std::vector<uint8_t> small_fire_map(end-start);
                 auto it = simu.fire_map().begin() + start;
                 auto it2 = simu.fire_map().begin() + end;
                 std::copy(it, it2, small_fire_map.begin());
-
-                // std::vector<uint8_t> small_fire_map(simu.fire_map().begin() + start, simu.fire_map().begin() + end - 1);
                 
                 std::vector<uint8_t> small_vegetal_map(end-start);
                 auto it3 = simu.vegetal_map().begin() + start;
                 auto it4 = simu.vegetal_map().begin() + end;
                 std::copy(it3, it4, small_vegetal_map.begin());
-
-                // std::vector<uint8_t> small_vegetal_map(simu.vegetal_map().begin() + start, simu.vegetal_map().begin() + end - 1);
                 
                 // Définition des tailles d'envoi pour chaque processus
                 int local_fire_size = end - start;
@@ -307,8 +297,7 @@ int main(int nargs, char* args[]) {
                     for (int i = 1; i < new_size; i++) {
                         displs[i] = displs[i - 1] + recv_counts[i - 1];
                     }
-                }            // }
-
+                }         
 
                 // Allocation des buffers finaux sur le processus root
                 std::vector<uint8_t> fire_map;
@@ -338,15 +327,17 @@ int main(int nargs, char* args[]) {
                     MPI_Wait(&request2, MPI_STATUS_IGNORE);
                 }
             }
-            MPI_Request r1;
-            MPI_Request r2;
-
-            std::vector<uint8_t> fire_map;
-            std::vector<uint8_t> vegetal_map;
-            MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r1);
-            MPI_Wait(&r1, MPI_STATUS_IGNORE);
-            MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r2);
-            MPI_Wait(&r2, MPI_STATUS_IGNORE);
+            if(new_rank == 0){
+                MPI_Request r1;
+                MPI_Request r2;
+    
+                std::vector<uint8_t> fire_map;
+                std::vector<uint8_t> vegetal_map;
+                MPI_Isend(vegetal_map.data(), vegetal_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r1);
+                MPI_Wait(&r1, MPI_STATUS_IGNORE);
+                MPI_Isend(fire_map.data(), fire_map.size(), MPI_UINT8_T, 0, 1, MPI_COMM_WORLD, &r2);
+                MPI_Wait(&r2, MPI_STATUS_IGNORE);
+            }
         }
     }
     else {

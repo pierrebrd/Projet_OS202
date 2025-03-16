@@ -104,12 +104,6 @@ Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
         std::copy(ghost_cells_down.begin(), ghost_cells_down.end(), m_fire_map.begin() + end);
     }
 
-    // On met à jour les ghost_cells
-    // for(int i = 0; i < (int)m_geometry; i++){
-    //     m_fire_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up[i];
-    //     m_fire_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down[i];
-    // }
-
     // Partie pour le végetal
     std::vector<uint8_t> ghost_cells_up_vegetal(m_geometry, 0u);
     std::vector<uint8_t> ghost_cells_down_vegetal(m_geometry, 0u);
@@ -134,12 +128,6 @@ Model::update_ghost_cells(int rank, int n_rank, MPI_Comm newCom){
     if(rank != n_rank - 1){
         std::copy(ghost_cells_down_vegetal.begin(), ghost_cells_down_vegetal.end(), m_vegetation_map.begin() + end);
     }
-
-    // // On met à jour les ghost_cells
-    // for(int i = 0; i < (int)m_geometry; i++){
-    //     m_vegetation_map[mod((start-m_geometry) + i, m_geometry*m_geometry)] = ghost_cells_up_vegetal[i];
-    //     m_vegetation_map[mod(end + i, m_geometry*m_geometry)] = ghost_cells_down_vegetal[i];
-    // }
 
     // Partie pour le fire_front
     // Collection des clés pour la parallélisation : on récupère et envoie les coordonnées des cases en feu adjacentes
@@ -423,7 +411,6 @@ Model::update(int rank, int n_rank, MPI_Comm newCom) {
         }
     }
     m_time_step += 1;
-    std::cout << "Rank : " << rank << " Empty :"<< m_fire_front.empty() << "Time step : " << m_time_step << std::endl;
     return !m_fire_front.empty(); // Problème ici, on risque de ne pas avoir un front empty si on laisse des cases bonus
 }
 
